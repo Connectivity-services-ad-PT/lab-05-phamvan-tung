@@ -1,0 +1,11 @@
+{
+  "analytics_target": "Smart Campus Operations",
+  "dependencies": {
+    "B1_iot": { "status": "unavailable" },
+    "B4_vision": { "status": "unavailable" }
+  },
+  "summary": {
+    "total_energy_kwh": 4550,
+    "campus_population": 1500
+  }
+}

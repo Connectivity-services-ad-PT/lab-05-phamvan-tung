@@ -1,44 +1,45 @@
-"""
-Simple AI service mock for Lab 05.
-
-This service exposes two endpoints:
-
-* `GET /health` – returns status, service name and version.
-* `POST /predict` – returns a dummy list of detected objects and confidences.
-
-You can replace this file with your actual inference code (e.g. YOLOv8 model).
-"""
-
+import os
+import httpx
 from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import List
+from dotenv import load_dotenv
 
-SERVICE_NAME = "ai-service"
-SERVICE_VERSION = "0.5.0"
+load_dotenv()
+app = FastAPI(title="B5 - Analytics Service")
 
-app = FastAPI(
-    title="FIT4110 Lab 05 - AI Service",
-    version=SERVICE_VERSION,
-    description="Mock AI service used in Docker Compose stack.",
-)
+IOT_SERVICE_URL = os.getenv("IOT_SERVICE_URL", "http://localhost:8001")
+VISION_SERVICE_URL = os.getenv("VISION_SERVICE_URL", "http://localhost:8004")
 
+# Endpoint /health bắt buộc theo yêu cầu của thầy
+@app.get("/health", status_code=200)
+async def health_check():
+    return {
+        "status": "ok",
+        "service": "B5 - Analytics Service"
+    }
 
-class Prediction(BaseModel):
-    objects: List[str]
-    confidence: List[float]
+# Endpoint tổng hợp dữ liệu từ các nhóm đối tác
+@app.get("/api/v1/analytics/summary")
+async def get_campus_summary():
+    iot_data = {}
+    vision_data = {}
 
+    async with httpx.AsyncClient() as client:
+        # Gọi sang IoT B1 (Timeout 5 giây chống treo)
+        try:
+            response = await client.get(f"{IOT_SERVICE_URL}/health", timeout=5.0)
+            iot_data = {"status": "connected"} if response.status_code == 200 else {"status": "error"}
+        except (httpx.TimeoutException, httpx.RequestError):
+            iot_data = {"status": "unavailable"}
 
-@app.get("/health")
-def health() -> dict:
-    return {"status": "ok", "service": SERVICE_NAME, "version": SERVICE_VERSION}
+        # Gọi sang AI Vision B4 (Timeout 5 giây chống treo)
+        try:
+            response = await client.get(f"{VISION_SERVICE_URL}/health", timeout=5.0)
+            vision_data = {"status": "connected"} if response.status_code == 200 else {"status": "error"}
+        except (httpx.TimeoutException, httpx.RequestError):
+            vision_data = {"status": "unavailable"}
 
-
-@app.post("/predict", response_model=Prediction)
-def predict() -> Prediction:
-    # This dummy implementation always returns two objects
-    return Prediction(objects=["person", "bicycle"], confidence=[0.98, 0.85])
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=9000)
+    return {
+        "analytics_target": "Smart Campus Operations",
+        "dependencies": {"B1_iot": iot_data, "B4_vision": vision_data},
+        "summary": {"total_energy_kwh": 4550, "campus_population": 1500}
+    }
